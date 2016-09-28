@@ -25,18 +25,18 @@
 
 typedef struct _HOOKSTRUCT
 {
-    int nType;
-    HOOKPROC hkprc;
-    HHOOK hhook;
-    bool bInstalled;
+	int nType;
+	HOOKPROC hkprc;
+	HHOOK hhook;
+	bool bInstalled;
 } HOOKSTRUCT;
 
 
 struct mouseAction {
-    QPoint pos;         // cursor position
-    uint64_t action;    // list of actions supported are below
-    uint64_t time;      // time when the action was taken
-    uint64_t delay;     // time from the previous action
+	QPoint pos;         // cursor position
+	uint64_t action;    // list of actions supported are below
+	uint64_t time;      // time when the action was taken
+	uint64_t delay;     // time from the previous action
 
 };
 
@@ -51,13 +51,13 @@ class MainWindow;
 
 class MainWindow : public QMainWindow
 {
-    Q_OBJECT
+	Q_OBJECT
 
 
 public:
-    explicit MainWindow(QWidget *parent = 0);
-    ~MainWindow();
-    QString findExeDir(QString f);
+	explicit MainWindow(QWidget *parent = 0);
+	~MainWindow();
+	QString findExeDir(QString f);
 
 public slots:
 
@@ -66,49 +66,55 @@ signals:
 
 
 private slots:
-    void on_updateButton_clicked();
-    void on_tIntervalEdit_textChanged(const QString &arg1);
-    void on_startButton_clicked();
-    void on_stopButton_clicked();
-    void on_recordButton_clicked();
+	void on_updateButton_clicked();
+	void on_tIntervalEdit_textChanged(const QString &arg1);
+	void on_startButton_clicked();
+	void on_stopButton_clicked();
+	void on_recordButton_clicked();
 
-    void loadActions(string load);
-    void saveActions(string save);
-    void doActionList();
-    void doAction();
-
-    // debug functions
-    void showAllActions();
+	void loadActions(string load);
+	void saveActions(string save);
+	void doActionList();
+	void doAction(int index);
+	void updateActionCounterLabel();
 
 
-
-    void on_loadButton_clicked();
-    void on_loadPathEdit_textChanged(const QString &arg1);
-    void on_savePathEdit_textChanged(const QString &arg1);
+	// debug functions
+	void showAllActions();
 
 
-    void on_saveButton_clicked();
 
-private:
-    Ui::MainWindow *ui;
+	void on_loadButton_clicked();
+	void on_loadPathEdit_textChanged(const QString &arg1);
+	void on_savePathEdit_textChanged(const QString &arg1);
+	void on_saveButton_clicked();
+	void on_repeatBox_toggled(bool checked);
+	void on_repeatTimesEdit_textChanged(const QString &arg1);
 
-    QVector<mouseAction> actions;   // keep a list of actions recorded
 
-    QTimer *timer;
-    uint64_t timeZero;  // record starting time
-    int actionIndex;
-    bool recording;     // flags whether the app is currently recording or not
 
-    // mouse hook stuff
-    HHOOK MouseHook;
-    HOOKPROC hkprcSysMsg;
+	private:
+	Ui::MainWindow *ui;
 
-    // directories
-    QString exeDir;         // directory of this app executable
-    QString tempFileDir;    // temporary save location to store actions being recorded
-    QString fileLoaded;     // file containing actions currently loaded
-    QString defFileToLoad;  // default file to load, latest loaded??
+	QVector<mouseAction> actions;   // keep a list of actions recorded
 
+	QTimer *timer;
+	uint64_t timeZero;  // record starting time
+	int index;
+	bool recording;     // flags whether the app is currently recording or not
+	int actionIndex;	// current action in the list being performed
+	int repeatTotal;	// how many times the action list will be repeated
+	int currRep;		// how many times the action list has been repeated so far
+
+	// mouse hook stuff
+	HHOOK MouseHook;
+	HOOKPROC hkprcSysMsg;
+
+	// directories
+	QString exeDir;         // directory of this app executable
+	QString tempFileDir;    // temporary save location to store actions being recorded
+	QString fileLoaded;     // file containing actions currently loaded
+	QString defFileToLoad;  // default file to load, latest loaded??
 
 
 };
