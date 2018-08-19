@@ -3,13 +3,28 @@
 
 #include "mainwindow.h"
 
-class Mouse
-{
-public:
-    Mouse();
+class Mouse : public QObject {
+		Q_OBJECT
 
-    static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
-    static QString tmpActFile;
+	public:
+		Mouse();
+		~Mouse();
+
+		static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
+		static QString tmpActFile;
+
+
+		// get
+		QPoint getMousePosition();
+
+		// set
+		void setMousePosition(QPoint pos);
+
+	public slots:
+		void trackMousePosition(int interval);
+
+	private:
+		QPoint mousePosition;
 
 };
 

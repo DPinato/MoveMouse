@@ -39,18 +39,28 @@ MainWindow::MainWindow(QWidget *parent) :
 	ui->repeatTimesEdit->setValidator(new QIntValidator(0, 9999999, this));
 
 
+	// initialise UI
 	// put text in the various edits, labels and buttons
 	ui->console->setText("No file loaded");
 	ui->repeatTimesEdit->setText(QString::number(repeatTotal));
 	ui->loadPathEdit->setText(defFileToLoad);
 
+	// initialise the UI view for the monitors, put in the monitors of the current device
+	getMyMonitors();	// make sure this runs before anything requiring the myMonitors list
+	listMyMonitorsInUI();
+	drawMyMonitorsInUI();		// TODO: implement this function
 
-	// initialise data
+
+
+
+	// initialise data for mouse cursor
 	Mouse::tmpActFile = tempFileDir;
 	loadActions(tempFileDir.toStdString());
 
 
-
+	// initialise stuff for network operations
+	showNetworkInterfaces();
+	port = 60000;
 
 
 	// debug    ===============================================================
@@ -63,9 +73,22 @@ MainWindow::MainWindow(QWidget *parent) :
 	qDebug() << "tempFileDir; " << tempFileDir;
 
 
+	// initialise mouse things
+	Mouse *mouseObj = new Mouse();
+	mouseObj->moveToThread(&mousePollThread);
+	connect(&mousePollThread, SIGNAL(finished()), mouseObj, SLOT(deleteLater()));
+	connect(this, SIGNAL(startMousePolling(int)), mouseObj, SLOT(trackMousePosition(int)));
+
+//	mousePollThread.start();
+//	emit startMousePolling(0.1);
+
+	monitorDataToJSON();
+	jsonToMonitorData(QJsonDocument(monitorDataToJSON()));
+
 }
 
 MainWindow::~MainWindow() {
+	mousePollThread.quit();
 	timer->stop();
 	//    UnhookWindowsHookEx(MouseHook);
 	delete timer;
@@ -356,6 +379,257 @@ void MainWindow::updateActionCounterLabel() {
 
 }
 
+void MainWindow::updateConnectionStatus(QAbstractSocket::SocketState s) {
+	// status of clientSocket has changed, update the UI
+	switch (s) {
+		case QAbstractSocket::UnconnectedState:
+			ui->connStatusLabel->setText("Not Connected");
+		break;
+
+		case QAbstractSocket::HostLookupState:
+			ui->connStatusLabel->setText("Looking up hostname...");
+		break;
+
+		case QAbstractSocket::ConnectingState:
+			ui->connStatusLabel->setText("Connecting...");
+		break;
+
+		case QAbstractSocket::ConnectedState:
+			ui->connStatusLabel->setText("Connected to " + clientSocket->peerAddress().toString());
+		break;
+
+		case QAbstractSocket::BoundState:
+			ui->connStatusLabel->setText("Socket bound");
+		break;
+
+		case QAbstractSocket::ClosingState:
+			ui->connStatusLabel->setText("Closing connection...");
+		break;
+
+
+		default:
+			ui->connStatusLabel->setText("Unknown connection state");
+	}
+
+}
+
+void MainWindow::getMyMonitors() {
+	// get list of monitors and store it in myMonitors
+	// using a QHash here implicitly discards any duplicates
+	for (int i = 0; i < QApplication::screens().size(); i++) {
+		monitor tmp;
+		tmp.name = QApplication::screens().at(i)->name();
+		tmp.geometry = QApplication::screens().at(i)->geometry();
+
+		myMonitors[tmp.name] = tmp;
+	}
+}
+
+QJsonObject MainWindow::monitorDataToJSON() {
+	// function uses QApplication::screens() to get the monitor configuration of the device
+	// and packs it in a QByteArray
+	QJsonObject data;
+
+	getMyMonitors();	// run this just in case
+
+	data["monitorNum"] = QString::number(myMonitors.size());	// number of monitors
+
+	// put data for each monitor
+	QJsonArray jArray;
+	for (int i = 0; i < myMonitors.keys().size(); i++) {
+		QJsonObject jMonitorObject;
+		QString currKey = myMonitors.keys().at(i);
+
+//		jMonitorObject.insert("x", QString::number(myMonitors.at(i).geometry.x()).toStdString().c_str());
+//		jMonitorObject.insert("y", QString::number(myMonitors.at(i).geometry.y()).toStdString().c_str());
+//		jMonitorObject.insert("width", QString::number(myMonitors.at(i).geometry.width()).toStdString().c_str());
+//		jMonitorObject.insert("height", QString::number(myMonitors.at(i).geometry.height()).toStdString().c_str());
+
+		jMonitorObject.insert("x", QString::number(myMonitors[currKey].geometry.x()).toStdString().c_str());
+		jMonitorObject.insert("y", QString::number(myMonitors[currKey].geometry.y()).toStdString().c_str());
+		jMonitorObject.insert("width", QString::number(myMonitors[currKey].geometry.width()).toStdString().c_str());
+		jMonitorObject.insert("height", QString::number(myMonitors[currKey].geometry.height()).toStdString().c_str());
+
+
+
+		QJsonValue tmpValue = jMonitorObject;
+		jArray.insert(i, tmpValue);
+	}
+
+	data.insert("monitorData", jArray);
+	qDebug() << QJsonDocument(data);
+	return data;
+
+}
+
+void MainWindow::jsonToMonitorData(QJsonDocument jDoc) {
+	// called by the server instance to decode the JSON object received by the client with its monitor configuration
+	qDebug() << "jsonToMonitorData()";
+	qDebug() << jDoc;
+
+	// for whatever reason this toString().toInt() is necessary, instead of doing toInt() only
+	int monitors = jDoc.object()["monitorNum"].toString().toInt();
+	QJsonArray monitorData = jDoc.object()["monitorData"].toArray();
+
+	for (int i = 0; i < monitors; i++) {
+		monitor tmp;
+		tmp.geometry.setX(monitorData.at(i)["x"].toString().toInt());
+		tmp.geometry.setY(monitorData.at(i)["y"].toString().toInt());
+		tmp.geometry.setWidth(monitorData.at(i)["width"].toString().toInt());
+		tmp.geometry.setHeight(monitorData.at(i)["height"].toString().toInt());
+		tmp.name = monitorData.at(i)["name"].toString();
+		clientMonitors.append(tmp);
+	}
+
+
+	for (int i = 0; i < clientMonitors.size(); i++) { qDebug() << clientMonitors.at(i).geometry;	}	// debug
+
+}
+
+void MainWindow::listMyMonitorsInUI() {
+	// put the configurations of the monitors on this device
+	// initialise and create the model for the UI
+	qDebug() << "listMyMonitorsInUI()";
+
+	monitorModel = new QStandardItemModel(this);
+	monitorModel->setHorizontalHeaderItem(0, new QStandardItem(QString("Monitor")));
+	monitorModel->setHorizontalHeaderItem(1, new QStandardItem(QString("Owner")));
+	monitorModel->setHorizontalHeaderItem(2, new QStandardItem(QString("Pos X")));
+	monitorModel->setHorizontalHeaderItem(3, new QStandardItem(QString("Pos Y")));
+	monitorModel->setHorizontalHeaderItem(4, new QStandardItem(QString("Resolution")));
+	ui->monitorTableView->setModel(monitorModel);
+
+
+	// show items in model
+	for (int i = 0; i < myMonitors.keys().size(); i++) {
+		QString currKey = myMonitors.keys().at(i);
+
+		monitorModel->setItem(i, 0, new QStandardItem(myMonitors[currKey].name));
+		monitorModel->setItem(i, 1, new QStandardItem(QString("ME")));
+		monitorModel->setItem(i, 2, new QStandardItem(QString::number(myMonitors[currKey].geometry.x())));
+		monitorModel->setItem(i, 3, new QStandardItem(QString::number(myMonitors[currKey].geometry.y())));
+
+		QString resolution = QString::number(myMonitors[currKey].geometry.size().width());
+		resolution += "x";
+		resolution += QString::number(myMonitors[currKey].geometry.size().height());
+		monitorModel->setItem(i, 4, new QStandardItem(resolution));
+	}
+
+	ui->monitorTableView->resizeColumnsToContents();
+	ui->monitorTableView->resizeRowsToContents();
+
+}
+
+void MainWindow::drawMyMonitorsInUI() {
+
+}
+
+void MainWindow::listClientMonitorsInUI() {
+	// displays the list of monitors received by the client in the UI
+	qDebug() << "listClientMonitorsInUI()";
+
+	// show items in model
+	int o = myMonitors.size();
+	for (int i = 0; i < clientMonitors.size(); i++) {
+		monitorModel->setItem(i+o, 0, new QStandardItem(clientMonitors.at(i).name));
+		monitorModel->setItem(i+o, 1, new QStandardItem(serverSocket->peerAddress().toString()));
+		monitorModel->setItem(i+o, 2, new QStandardItem(QString::number(clientMonitors.at(i).geometry.x())));
+		monitorModel->setItem(i+o, 3, new QStandardItem(QString::number(clientMonitors.at(i).geometry.y())));
+
+		QString resolution = QString::number(clientMonitors.at(i).geometry.size().width());
+		resolution += "x";
+		resolution += QString::number(clientMonitors.at(i).geometry.size().height());
+		monitorModel->setItem(i+o, 4, new QStandardItem(resolution));
+	}
+
+	ui->monitorTableView->resizeColumnsToContents();
+	ui->monitorTableView->resizeRowsToContents();
+
+}
+
+void MainWindow::drawClientMonitorsInUI() {
+
+}
+
+
+
+void MainWindow::showNetworkInterfaces() {
+	 // display list of network interfaces in the UI
+	QList<QNetworkInterface> list = QNetworkInterface::allInterfaces();
+	QStringList strList;
+	strList.push_back("All Interfaces");
+
+	for (int i = 0; i < list.size(); i++) {
+		strList.push_back(list.at(i).humanReadableName());
+//		strList.push_back(list.at(i).name());	// these names on windows are not very descriptive
+
+		for (int i1 = 0; i1 < list.at(i).addressEntries().size(); i1++) {
+			qDebug() << "\t" << list.at(i).addressEntries().at(i1).ip().toString();
+		}
+	}
+
+	ui->networkIfaceComboBox->addItems(strList);
+
+}
+
+void MainWindow::newConnection() {
+	// called when server instance received an incoming connection
+	// the server will be the one where the hardware mouse/keyboard is being moved on
+	qDebug() << "newConnection()";
+	serverSocket = listenSocket->nextPendingConnection();
+	connect(serverSocket, SIGNAL(disconnected()), this, SLOT(clearClientData()));
+
+	QByteArray data;
+
+	// receive monitor details of the other device
+	qDebug() << "Waiting to receive monitor information from client...";
+	if (serverSocket->waitForReadyRead()) {
+		data = serverSocket->readAll();
+		qDebug() << "Read bytes " << data.size();
+		qDebug() << data;
+	} else {
+		qDebug() << "Did not receive monitor information in time";
+	}
+
+	// decode monitor data and save it
+	jsonToMonitorData(QJsonDocument::fromBinaryData(data));
+
+	// display monitors received by clients in the UI
+	listClientMonitorsInUI();
+	drawClientMonitorsInUI();	// TODO: implement this function
+
+
+	// start the loop to send mouse movements to the client
+
+
+
+}
+
+void MainWindow::connectedToServer() {
+	// called when client socket connects to server instance
+	qDebug() << "connectedToServer()";
+
+	// send information about this machine's monitor to server
+	// send it in JSON format, so it is easy to encode/decode
+	QThread::sleep(1);	// this is to wait for the receiver to start the waitForReadyRead()
+	qDebug () << "Sending monitor info...";
+
+	QJsonObject jMonitorData = monitorDataToJSON();
+	QByteArray monitorData = QJsonDocument(jMonitorData).toJson();
+
+	int dataSent = (int)clientSocket->write(monitorData);
+	if (dataSent == -1) { qDebug() << "Failed to send monitor data"; }
+
+
+
+}
+
+void MainWindow::clearClientData() {
+	// this is called if the connection between the server and client drops
+	clientMonitors.clear();
+
+}
+
 void MainWindow::showAllActions() {
 	// shows all the actions recorded
 	qDebug() << "\n\nShowing all the actions recorded ... " << actions.size();
@@ -411,5 +685,68 @@ void MainWindow::on_repeatBox_toggled(bool checked) {
 
 void MainWindow::on_repeatTimesEdit_textChanged(const QString &arg1) {
 	repeatTotal = arg1.toInt();
+
+}
+
+void MainWindow::on_listenButton_clicked() {
+	// start listening on the interface specified in the combobox
+
+	// update text in the label to show where the program is listening on
+	int intIndex = ui->networkIfaceComboBox->currentIndex();
+	QNetworkInterface netInt;
+	QString intIP;
+	QString labelMessage = "Listening on ";
+
+	if (intIndex == 0) {
+		intIP = "0.0.0.0";
+	} else {
+		qDebug () << "intIndex: " << QString::number(intIndex);
+		netInt = QNetworkInterface::allInterfaces().at(intIndex-1);
+		if (!netInt.isValid()) {
+			qDebug() << "netInt is invalid";
+			return;
+		}
+
+		int max = netInt.addressEntries().size();
+		intIP = netInt.addressEntries().at(max-1).ip().toString();
+		labelMessage.append(intIP);
+	}
+
+	labelMessage.append(intIP + ":" + QString::number(port));
+	ui->ifacePortLabel->setText(labelMessage);
+	qDebug() << labelMessage;
+
+
+	// open TCP socket and start listening
+	listenSocket = new QTcpServer(this);
+	connect(listenSocket, SIGNAL(newConnection()), this, SLOT(newConnection()));
+
+	if (intIndex == 0) {
+		if (!listenSocket->listen(QHostAddress::Any, port)) {
+			qDebug() << "Server could not start";
+			return;
+		}
+
+	} else {
+		if (!listenSocket->listen(QHostAddress(intIP), port)) {
+			qDebug() << "Server could not start";
+			return;
+		}
+	}
+
+}
+
+void MainWindow::on_connectButton_clicked() {
+	// connect to the host running the server instance
+	clientSocket = new QTcpSocket(this);
+	connect(clientSocket, SIGNAL(connected()), this, SLOT(connectedToServer()));
+	connect(clientSocket, SIGNAL(stateChanged(QAbstractSocket::SocketState)), this
+			, SLOT(updateConnectionStatus(QAbstractSocket::SocketState)));
+
+	clientSocket->connectToHost(ui->serverIPEdit->text(), port);
+	if (!clientSocket->waitForConnected(5000)) {
+		qDebug() << "Could not connect to server";
+		return;
+	}
 
 }
