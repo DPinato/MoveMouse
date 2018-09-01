@@ -3,28 +3,26 @@
 
 #include "mainwindow.h"
 
+#include <ApplicationServices/ApplicationServices.h>
+
 class Mouse : public QObject {
-		Q_OBJECT
-
-	public:
-		Mouse();
-		~Mouse();
-
-		static LRESULT CALLBACK MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam);
-		static QString tmpActFile;
+    Q_OBJECT
 
 
-		// get
-		QPoint getMousePosition();
+public:
+    Mouse();
+    ~Mouse();
 
-		// set
-		void setMousePosition(QPoint pos);
+    static CGEventRef myCGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon);
 
-	public slots:
-		void trackMousePosition(int interval);
+public slots:
+    static bool startMouseTracking(Mouse *mObj);
 
-	private:
-		QPoint mousePosition;
+signals:
+    void mouseMoved(QPoint pos);
+
+private:
+    QPoint mousePosition;
 
 };
 

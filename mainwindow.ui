@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>731</width>
-    <height>482</height>
+    <height>496</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -33,10 +33,10 @@
      <widget class="QPushButton" name="listenButton">
       <property name="geometry">
        <rect>
-        <x>20</x>
+        <x>10</x>
         <y>280</y>
-        <width>71</width>
-        <height>21</height>
+        <width>101</width>
+        <height>31</height>
        </rect>
       </property>
       <property name="text">
@@ -46,10 +46,10 @@
      <widget class="QLabel" name="label_5">
       <property name="geometry">
        <rect>
-        <x>20</x>
+        <x>10</x>
         <y>250</y>
-        <width>101</width>
-        <height>21</height>
+        <width>121</width>
+        <height>31</height>
        </rect>
       </property>
       <property name="text">
@@ -62,20 +62,20 @@
      <widget class="QComboBox" name="networkIfaceComboBox">
       <property name="geometry">
        <rect>
-        <x>130</x>
+        <x>140</x>
         <y>250</y>
         <width>161</width>
-        <height>22</height>
+        <height>31</height>
        </rect>
       </property>
      </widget>
      <widget class="QLabel" name="ifacePortLabel">
       <property name="geometry">
        <rect>
-        <x>100</x>
+        <x>110</x>
         <y>280</y>
         <width>191</width>
-        <height>21</height>
+        <height>31</height>
        </rect>
       </property>
       <property name="text">
@@ -98,10 +98,10 @@
      <widget class="QPushButton" name="connectButton">
       <property name="geometry">
        <rect>
-        <x>20</x>
-        <y>330</y>
-        <width>71</width>
-        <height>21</height>
+        <x>10</x>
+        <y>310</y>
+        <width>101</width>
+        <height>31</height>
        </rect>
       </property>
       <property name="text">
@@ -111,10 +111,10 @@
      <widget class="QLineEdit" name="serverIPEdit">
       <property name="geometry">
        <rect>
-        <x>130</x>
-        <y>330</y>
+        <x>110</x>
+        <y>315</y>
         <width>91</width>
-        <height>20</height>
+        <height>21</height>
        </rect>
       </property>
       <property name="text">
@@ -135,13 +135,29 @@
       <property name="geometry">
        <rect>
         <x>130</x>
-        <y>360</y>
+        <y>350</y>
         <width>171</width>
         <height>21</height>
        </rect>
       </property>
       <property name="text">
        <string>&lt;Connection Status&gt;</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignCenter</set>
+      </property>
+     </widget>
+     <widget class="QLabel" name="mouseLocationLabel">
+      <property name="geometry">
+       <rect>
+        <x>10</x>
+        <y>350</y>
+        <width>101</width>
+        <height>21</height>
+       </rect>
+      </property>
+      <property name="text">
+       <string>&lt;posX - posY&gt;</string>
       </property>
       <property name="alignment">
        <set>Qt::AlignCenter</set>
@@ -408,7 +424,7 @@
      <x>0</x>
      <y>0</y>
      <width>731</width>
-     <height>20</height>
+     <height>22</height>
     </rect>
    </property>
   </widget>

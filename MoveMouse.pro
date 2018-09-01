@@ -12,6 +12,8 @@ greaterThan(QT_MAJOR_VERSION, 4): QT += widgets
 TARGET = MoveMouse
 TEMPLATE = app
 
+LIBS += -framework ApplicationServices
+
 
 SOURCES += main.cpp\
 	mainwindow.cpp \

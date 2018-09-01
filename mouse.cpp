@@ -1,7 +1,5 @@
 #include "mouse.h"
 
-QString Mouse::tmpActFile = "";
-
 Mouse::Mouse() {
 
 }
@@ -10,101 +8,48 @@ Mouse::~Mouse() {
 
 }
 
-void Mouse::trackMousePosition(int interval) {
-	// this function will be running in its own thread
-	forever {
-		// check if the thread needs to be interrupted
-		if (QThread::currentThread()->isInterruptionRequested()) {
-			return;
-		}
+bool Mouse::startMouseTracking(Mouse *mObj) {
+    // I have found this here:
+    // http://osxbook.com/book/bonus/chapter2/altermouse/
+    qDebug() << "Mouse::startMouseTracking()";
+    CFMachPortRef eventTap;
+    CGEventMask eventMask;
+    CFRunLoopSourceRef runLoopSource;
 
-		mousePosition = QCursor::pos();
-		qDebug() << mousePosition;
-		QThread::sleep(interval);
-	}
-}
+    // Create an event tap. We are interested in mouse movements.
+    eventMask = (1 << kCGEventMouseMoved);
+    eventTap = CGEventTapCreate(kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, eventMask, myCGEventCallback, mObj);
+    if (!eventTap) {
+        qDebug() << "failed to create event tap";
+        return false;
+    }
 
-LRESULT Mouse::MouseHookProc(int nCode, WPARAM wParam, LPARAM lParam) {
-	// detect mouse action and record it
-	PKBDLLHOOKSTRUCT k = (PKBDLLHOOKSTRUCT)(lParam);
-	POINT p;
-	mouseAction temp;
-	bool write = false;
+    runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, eventTap, 0);        // Create a run loop source.
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);        // Add to the current run loop.
+    CGEventTapEnable(eventTap, true);       // Enable the event tap.
 
-//    qDebug() << "lParam ... " << lParam;
+//    CFRunLoopRun();   // this is not needed, as it blocks
 
-	switch (wParam) {
-//    case (WM_MOUSEMOVE) : {
-//        GetCursorPos(&p);
-////        qDebug() << "Mouse moved ... " << p.x << "\t" << p.y;
-//        break;
-//    }
-
-	case (WM_RBUTTONDOWN) : {
-		GetCursorPos(&p);
-		qDebug() << wParam << "\tRight button DOWN at " << p.x << "\t" << p.y;
-		temp.action = (uint16_t)WM_RBUTTONDOWN;
-		temp.time = QDateTime::currentMSecsSinceEpoch();
-		write = true;
-		break;
-	}
-	case (WM_RBUTTONUP) : {
-		GetCursorPos(&p);
-		qDebug() <<  wParam << "\tRight button UP at " << p.x << "\t" << p.y;
-		temp.action = (uint16_t)WM_RBUTTONUP;
-		temp.time = QDateTime::currentMSecsSinceEpoch();
-		write = true;
-		break;
-	}
-
-	case (WM_LBUTTONDOWN) : {
-		GetCursorPos(&p);
-		qDebug() <<  wParam << "\tLeft button DOWN at " << p.x << "\t" << p.y;
-		temp.action = (uint16_t)WM_LBUTTONDOWN;
-		temp.time = QDateTime::currentMSecsSinceEpoch();
-		write = true;
-		break;
-	}
-	case (WM_LBUTTONUP) : {
-		GetCursorPos(&p);
-		qDebug() <<  wParam << "\tLeft button UP at " << p.x << "\t" << p.y;
-		temp.action = (uint16_t)WM_LBUTTONUP;
-		temp.time = QDateTime::currentMSecsSinceEpoch();
-		write = true;
-		break;
-	}
-
-	}
-
-
-	temp.pos = QPoint(p.x, p.y);
-
-	// only write if something useful was taken
-	if (write) {
-		if (tmpActFile.isEmpty()) {
-			qDebug() << "NO TEMP FILE FOR ACTIONS WAS DEFINED";
-
-		} else {
-			ofstream toTemp(Mouse::tmpActFile.toStdString().c_str(), ios::app);
-			if (toTemp.is_open()) {
-				toTemp << temp.time << "\t" << temp.action << "\t" << temp.pos.x() << "\t" << temp.pos.y();
-				toTemp << "\n";
-				toTemp.close();
-
-			}
-		}
-
-	}
-
-
-	return CallNextHookEx(NULL, nCode, wParam, lParam);
+    return true;
 
 }
 
-QPoint Mouse::getMousePosition() {
-	return mousePosition;
+CGEventRef Mouse::myCGEventCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
+    // Do some sanity check.
+    if (type != kCGEventMouseMoved) { return event; }
+
+    // The incoming mouse position.
+    CGPoint location = CGEventGetLocation(event);
+
+    // We can change aspects of the mouse event.
+    // For example, we can use CGEventSetLoction(event, newLocation).
+    // Here, we just print the location.
+//    qDebug() << (int)location.x << "\t" << (int)location.y;
+
+    // emit mouseMoved signal to tell MainWindow
+    emit ((Mouse*)refcon)->mouseMoved(QPoint((int)location.x, (int)location.y));
+
+    return event;    // We must return the event for it to be useful.
+
 }
 
-void Mouse::setMousePosition(QPoint pos) {
-	QCursor::setPos(pos);
-}
